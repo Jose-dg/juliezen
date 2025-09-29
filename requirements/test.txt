@@ -1,0 +1,6 @@
+-r base.txt
+
+# Testing specific
+pytest-cov>=4.1,<5.0
+pytest-mock>=3.11,<4.0
+pytest-xdist>=3.3,<4.0
