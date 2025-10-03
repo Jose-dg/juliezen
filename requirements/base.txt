@@ -15,6 +15,7 @@ celery>=5.3,<6.0
 
 # Authentication
 djangorestframework-simplejwt>=5.2,<6.0
+django-oauth-toolkit[openid]>=2.3,<3.0
 
 # AI & ML
 openai>=1.0,<2.0

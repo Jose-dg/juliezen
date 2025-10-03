@@ -1,19 +1,16 @@
-version: '3.8'
-
 services:
   db:
     image: postgres:15-alpine
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
     environment:
-      POSTGRES_DB: daydreamshop
-      POSTGRES_USER: daydreamshop
-      POSTGRES_PASSWORD: daydreamshop123
+      POSTGRES_DB: juliezen
+      POSTGRES_USER: juliezen
+      POSTGRES_PASSWORD: 12345
     ports:
       - "5433:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U daydreamshop"]
+      test: ["CMD-SHELL", "pg_isready -U juliezen"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -38,11 +35,11 @@ services:
       - ./static:/app/static
       - ./media:/app/media
     ports:
-      - "8001:8000"
+      - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://daydreamshop:daydreamshop123@db:5432/daydreamshop
+      - DATABASE_URL=postgresql://juliezen:12345@db:5432/juliezen
       - REDIS_URL=redis://redis:6379/0
-      - DJANGO_SETTINGS_MODULE=core.settings.local
+      - DJANGO_SETTINGS_MODULE=core.settings
       - SECRET_KEY=dev-secret-key-change-in-production
       - DEBUG=True
     depends_on:

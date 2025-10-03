@@ -1,7 +1,11 @@
 import uuid
+from typing import TYPE_CHECKING
+
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 
+if TYPE_CHECKING:  # pragma: no cover
+    from apps.companies.models import Company
 
 class User(AbstractUser):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
