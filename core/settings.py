@@ -94,6 +94,7 @@ DATABASES = {
 
 DATABASES["default"]["ATOMIC_REQUESTS"] = True
 
+'''
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
@@ -105,7 +106,9 @@ DATABASES = {
     }
 }
 
+
 DATABASES["default"]["ATOMIC_REQUESTS"] = True
+'''
 
 # Cache
 CACHES = {
