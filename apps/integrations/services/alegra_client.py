@@ -10,6 +10,7 @@ from django.utils import timezone
 from apps.integrations.exceptions import AlegraAPIError, AlegraCredentialError
 from apps.alegra.models import AlegraCredential
 from apps.integrations.models import IntegrationMessage
+from apps.integrations.error_codes import extract_error_message, map_status
 
 logger = logging.getLogger(__name__)
 
@@ -76,17 +77,38 @@ class AlegraClient:
             )
         except requests.RequestException as exc:
             logger.exception("Error de red al llamar a Alegra")
-            message.mark_failed("network_error", str(exc))
-            raise AlegraAPIError("Error de red al comunicarse con Alegra") from exc
+            message.mark_failed(
+                "network_error",
+                str(exc),
+                retryable=True,
+            )
+            raise AlegraAPIError(
+                "Error de red al comunicarse con Alegra",
+                status_code=None,
+                error_code="network_error",
+                retryable=True,
+            ) from exc
 
         body = self._parse_response_body(response)
         if response.ok:
             message.mark_processed(body, http_status=response.status_code, latency_ms=latency_ms)
             return body
 
-        error_message = body if isinstance(body, str) else str(body)
-        message.mark_failed(str(response.status_code), error_message, http_status=response.status_code)
-        raise AlegraAPIError(f"Alegra respondió {response.status_code}: {error_message}")
+        error_code, retryable = map_status(response.status_code)
+        error_message = extract_error_message(body)
+        message.mark_failed(
+            error_code,
+            error_message,
+            http_status=response.status_code,
+            retryable=retryable,
+        )
+        raise AlegraAPIError(
+            f"Alegra respondió {response.status_code}: {error_message}",
+            status_code=response.status_code,
+            error_code=error_code,
+            retryable=retryable,
+            payload=body if isinstance(body, dict) else {"raw": body},
+        )
 
     # ------------------------------------------------------------------
     # Internal helpers

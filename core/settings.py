@@ -52,6 +52,7 @@ INSTALLED_APPS = [
     "apps.integrations",
     "apps.recommendations",
     "apps.notifications",
+    "apps.erpnext",
 ]
 
 MIDDLEWARE = [
@@ -105,19 +106,6 @@ DATABASES = {
 }
 
 DATABASES["default"]["ATOMIC_REQUESTS"] = True
-
-# Para uso temporal, puedes comentar el bloque superior y descomentar este
-# diccionario para conectar manualmente a una base específica.
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.postgresql',
-#         'NAME': 'juliezen',
-#         'USER': 'postgres',
-#         'PASSWORD': '7508',
-#         'HOST': 'localhost',
-#         'PORT': '5432',
-#     }
-# }
 
 # Cache
 CACHES = {

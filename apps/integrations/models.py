@@ -71,6 +71,8 @@ class IntegrationMessage(models.Model):
     latency_ms = models.PositiveIntegerField(blank=True, null=True)
     idempotency_key = models.CharField(max_length=191, blank=True)
 
+    MAX_AUTO_RETRIES = 3
+
     objects = IntegrationMessageQuerySet.as_manager()
 
     ALLOWED_TRANSITIONS = {
@@ -134,6 +136,9 @@ class IntegrationMessage(models.Model):
             self.refresh_from_db()
 
     def mark_dispatched(self, *, attempted_at=None, http_status: int | None = None, latency_ms: int | None = None):
+        if self.status not in {self.STATUS_RECEIVED, self.STATUS_DISPATCHED}:
+            return
+
         attempted_at = attempted_at or timezone.now()
         updates = {
             "dispatched_at": attempted_at,
@@ -167,17 +172,27 @@ class IntegrationMessage(models.Model):
             },
         )
 
-    def mark_failed(self, error_code: str, error_message: str, *, http_status: int | None = None):
+    def mark_failed(
+        self,
+        error_code: str,
+        error_message: str,
+        *,
+        http_status: int | None = None,
+        retryable: bool = True,
+    ):
         now = timezone.now()
-        delay = self._backoff_delay(self.retries)
         updates = {
             "error_code": error_code,
             "error_message": error_message,
             "processed_at": now,
             "last_attempt_at": now,
-            "next_attempt_at": now + timedelta(seconds=delay),
             "retries": self.retries + 1,
         }
+        if retryable:
+            delay = self._backoff_delay(self.retries)
+            updates["next_attempt_at"] = now + timedelta(seconds=delay)
+        else:
+            updates["next_attempt_at"] = None
         if http_status is not None:
             updates["http_status"] = http_status
         self._transition(self.STATUS_FAILED, updates)
@@ -199,6 +214,9 @@ class IntegrationMessage(models.Model):
             error_message="",
             next_attempt_at=now + timedelta(seconds=delay),
         )
+        from apps.integrations.tasks import process_integration_message
+
+        process_integration_message.apply_async((str(clone.id),), countdown=delay)
         return clone
 
     @staticmethod

@@ -15,6 +15,7 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     # API endpoints (comentadas temporalmente para resolver errores de importación)
     path("api/alegra/", include(("apps.alegra.urls", "alegra"), namespace="alegra")),
+    path("api/erpnext/", include("apps.erpnext.urls")),
     # path("api/integrations/", include("apps.integrations.urls")),
     # Health check
     # path("", include("core.urls")),

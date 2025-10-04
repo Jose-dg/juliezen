@@ -47,8 +47,8 @@ class AlegraWebhookView(APIView):
             idempotency_key=idempotency_key,
         )
 
-        process_integration_message.delay(str(message.id))
         message.mark_dispatched(http_status=status.HTTP_202_ACCEPTED)
+        process_integration_message.delay(str(message.id))
 
         return Response(
             {

@@ -64,9 +64,13 @@ def _extract_invoice_payload(message: IntegrationMessage) -> Dict[str, Any]:
     return payload
 
 
+SUPPORTED_DOCTYPES = {"POS Invoice", "Sales Invoice"}
+
+
 @registry.register("alegra", "on_submit")
 def process_erpnext_invoice(message: IntegrationMessage) -> Dict[str, Any]:
     payload = message.payload or {}
-    if payload.get("doctype") != "POS Invoice":
-        return {"skipped": True, "reason": "unsupported_doctype", "doctype": payload.get("doctype")}
+    doctype = payload.get("doctype")
+    if doctype not in SUPPORTED_DOCTYPES:
+        return {"skipped": True, "reason": "unsupported_doctype", "doctype": doctype}
     return process_erpnext_pos_invoice(message)

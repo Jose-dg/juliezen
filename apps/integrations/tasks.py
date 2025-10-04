@@ -8,6 +8,7 @@ from events.events import IntegrationInboundEvent, IntegrationOutboundEvent
 
 from apps.integrations.models import IntegrationMessage
 from apps.integrations.router import registry
+from apps.integrations.error_codes import classify_exception
 
 
 @shared_task(bind=True, autoretry_for=(), max_retries=5, retry_backoff=True)
@@ -46,11 +47,23 @@ def _process_inbound_message(task, message: IntegrationMessage) -> str:
         )
         return str(message.id)
     except Exception as exc:
-        message.mark_failed("handler_error", str(exc))
-        if message.retries >= 5:
-            return str(message.id)
-        message.schedule_retry()
-        raise task.retry(exc=exc)
+        error_code, retryable, status_code = classify_exception(exc)
+        message.mark_acknowledged()
+        summary = {
+            "status": "failed",
+            "error_code": error_code,
+            "retryable": retryable,
+        }
+        next_attempt_id = None
+        if retryable and message.retries < IntegrationMessage.MAX_AUTO_RETRIES:
+            message.retries = message.retries + 1
+            message.save(update_fields=["retries"])
+            clone = message.schedule_retry()
+            summary["next_attempt_id"] = str(clone.id)
+            if clone.next_attempt_at:
+                summary["next_attempt_at"] = clone.next_attempt_at.isoformat()
+        message.mark_processed(response=summary, http_status=status_code)
+        return str(message.id)
 
 
 def _process_outbound_message(message: IntegrationMessage) -> str:
