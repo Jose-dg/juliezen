@@ -1,9 +1,0 @@
--r base.txt
-
-# Development Tools
-django-debug-toolbar>=4.2,<5.0
-django-silk>=5.0,<6.0
-ipython>=8.14,<9.0
-
-# Pre-commit hooks
-pre-commit>=3.3,<4.0
