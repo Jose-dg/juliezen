@@ -2,11 +2,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 from pathlib import Path
-
-import dj_database_url
 import environ
-from django.core.exceptions import ImproperlyConfigured
-
 
 env = environ.Env()
 environ.Env.read_env()
@@ -19,17 +15,10 @@ ENVIRONMENT = env("DJANGO_ENV", default="local")
 
 # Security & basic config
 SECRET_KEY = env("SECRET_KEY")
-DEBUG = env.bool("DEBUG")
+DEBUG = env.bool("DEBUG", default=False)
 
-PRODUCTION_HOST = env("PRODUCTION_HOST", default=None)
-ALLOWED_HOSTS: list[str] = []
-if PRODUCTION_HOST:
-    ALLOWED_HOSTS.append(PRODUCTION_HOST)
-
-# CSRF Configuration for production domain
-CSRF_TRUSTED_ORIGINS: list[str] = []
-if PRODUCTION_HOST:
-    CSRF_TRUSTED_ORIGINS.append(f"https://{PRODUCTION_HOST}")
+ALLOWED_HOSTS: list[str] = env.list("ALLOWED_HOSTS")
+CSRF_TRUSTED_ORIGINS: list[str] = env.list("CSRF_TRUSTED_ORIGINS")
 
 ROOT_DOMAIN_SLUG = env("ROOT_DOMAIN_SLUG", default="julizen.com")
 
