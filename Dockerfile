@@ -10,11 +10,11 @@ RUN apt-get update && apt-get install -y \
 # Establecer directorio de trabajo
 WORKDIR /app
 
-# Copiar archivos de dependencias
-COPY requirements/ requirements/
+# Copiar archivo de dependencias
+COPY requirements.txt requirements.txt
 
 # Instalar dependencias Python
-RUN pip install --no-cache-dir -r requirements/base.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copiar todo el código del proyecto (NO backend/)
 COPY . .
