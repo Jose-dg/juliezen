@@ -19,12 +19,20 @@ ENVIRONMENT = env("DJANGO_ENV", default="local")
 
 # Security & basic config
 SECRET_KEY = env("SECRET_KEY")
-DEBUG = env.bool("DEBUG", default=ENVIRONMENT == "local")
-ALLOWED_HOSTS: list[str] = env.list("ALLOWED_HOSTS", default=[])
-if ENVIRONMENT == "production" and not ALLOWED_HOSTS:
-    ALLOWED_HOSTS = ["*"]
+DEBUG = env.bool("DEBUG")
+
+PRODUCTION_HOST = env("PRODUCTION_HOST", default=None)
+ALLOWED_HOSTS: list[str] = []
+if PRODUCTION_HOST:
+    ALLOWED_HOSTS.append(PRODUCTION_HOST)
+
+# CSRF Configuration for production domain
+CSRF_TRUSTED_ORIGINS: list[str] = []
+if PRODUCTION_HOST:
+    CSRF_TRUSTED_ORIGINS.append(f"https://{PRODUCTION_HOST}")
 
 ROOT_DOMAIN_SLUG = env("ROOT_DOMAIN_SLUG", default="julizen.com")
+
 ORGANIZATION_ACCESS_CACHE_TTL = env.int(
     "ORGANIZATION_ACCESS_CACHE_TTL", default=300
 )
