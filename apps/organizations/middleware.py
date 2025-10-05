@@ -46,6 +46,32 @@ class OrganizationContextMiddleware:
         return response
 
     def _resolve_organization(self, request: HttpRequest) -> Optional[Organization]:
+        # --- INICIO DE LA MODIFICACIÓN: Lógica de Header ---
+        slug_from_header = request.headers.get("X-Organization-Slug")
+        if slug_from_header:
+            try:
+                organization = Organization.objects.get(slug=slug_from_header, is_active=True)
+                # Si la encuentra, la validación de acceso del usuario continúa
+                user = getattr(request, "user", None)
+                if user and user.is_authenticated:
+                    cache_key = f"user_org_access:{user.id}:{organization.id}"
+                    has_access = cache.get(cache_key)
+                    if has_access is None:
+                        has_access = ERPNextService.check_user_organization_access(user.email, organization.id)
+                        cache.set(cache_key, has_access, timeout=settings.ORGANIZATION_ACCESS_CACHE_TTL)
+                    if not has_access:
+                        logger.warning(
+                            f"Acceso denegado a la organización {organization.slug} "
+                            f"para el usuario {user.email} (verificado por ERPNext/caché)"
+                        )
+                        return None
+                return organization
+            except Organization.DoesNotExist:
+                logger.warning(f"Organización no encontrada para el slug del header: {slug_from_header}")
+                # Si el header es inválido, no continuamos para evitar errores.
+                return None
+        # --- FIN DE LA MODIFICACIÓN ---
+
         # 1. Obtener el slug de la organización del subdominio
         host = request.get_host().split(':')[0]  # Eliminar el puerto si existe
         domain_parts = host.split('.')
