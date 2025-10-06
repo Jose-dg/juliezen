@@ -10,7 +10,6 @@ from .serializers import ItemSerializer
 
 logger = logging.getLogger(__name__)
 
-
 class ItemDetailView(APIView):
     """API View to retrieve details for a specific Item from ERPNext."""
 
@@ -76,14 +75,34 @@ class SalesOrderListView(APIView):
         # Extract filters and fields from query parameters
         # Example: /api/erpnext/sales-orders/?filters=[["status","=","To Bill"]]&fields=["name","customer"]
         try:
-            filters = request.query_params.get("filters")
+            # Start with filters from query params, potentially a JSON string
+            filters_str = request.query_params.get("filters")
+            if filters_str:
+                try:
+                    filters = json.loads(filters_str)
+                    if not isinstance(filters, list):
+                        filters = []
+                except json.JSONDecodeError:
+                    filters = []
+            else:
+                filters = []
+
+            # Add date filters if provided
+            from_date = request.query_params.get("from_date")
+            to_date = request.query_params.get("to_date")
+
+            if from_date:
+                filters.append(["transaction_date", ">=", from_date])
+            if to_date:
+                filters.append(["transaction_date", "<=", to_date])
+
             fields = request.query_params.get("fields")
             limit = int(request.query_params.get("limit", 20))
             offset = int(request.query_params.get("offset", 0))
 
             client = ERPNextClient(credential=credential)
             orders_data = client.list_sales_orders(
-                filters=filters,
+                filters=json.dumps(filters) if filters else None,
                 fields=fields,
                 limit=limit,
                 offset=offset

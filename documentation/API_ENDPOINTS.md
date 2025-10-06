@@ -1133,3 +1133,7 @@ Para soporte técnico o preguntas sobre la API, contacta al equipo de desarrollo
 
 *Última actualización: Enero 2024*
 *Versión de la API: 1.0.0*
+
+
+457d72662d1184a
+5a25b891fa6facb

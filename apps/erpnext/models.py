@@ -51,4 +51,3 @@ class ERPNextCredential(models.Model):
 
     def __str__(self) -> str:
         return f"{self.organization_id} - {self.erpnext_url}"
-

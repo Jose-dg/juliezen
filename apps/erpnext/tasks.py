@@ -1,72 +1,50 @@
-
+# tasks.py
+import math
 import logging
-
 from celery import shared_task
-
-from .models import ERPNextCredential
 from .services import ERPNextClient, ERPNextClientError
+from .models import ERPNextCredential
 
 logger = logging.getLogger(__name__)
 
+@shared_task(bind=True, max_retries=3, default_retry_delay=30)
+def create_invoices_from_pending_orders_task(self, organization_id: str):
+    cred = ERPNextCredential.objects.active().filter(organization_id=organization_id).first()
+    if not cred:
+        logger.error("No ERPNextCredential for org %s", organization_id)
+        return
 
-@shared_task(name="erpnext.create_invoices_from_pending_orders")
-def create_invoices_from_pending_orders_task(organization_id: str):
-    """
-    A Celery task to find all Sales Orders 'To Bill' and create Sales Invoices for them.
-    """
-    logger.info("Starting task to create invoices for organization %s", organization_id)
+    client = ERPNextClient(cred)
 
-    credential = ERPNextCredential.objects.active().filter(organization_id=organization_id).first()
-    if not credential:
-        logger.error("Task failed: No active ERPNext credentials for organization %s", organization_id)
-        return {"status": "error", "message": "Credentials not found."}
+    # 1) contar y paginar
+    limit = 50
+    offset = 0
 
-    try:
-        client = ERPNextClient(credential=credential)
-        
-        # Find all Sales Orders with status "To Bill"
-        filters = '[["status","=","To Bill"]]' # Use string representation as expected by the service
-        fields = '["name"]'
-        pending_orders = client.list_sales_orders(filters=filters, fields=fields, limit=100) # Process 100 at a time
+    common_filters = [
+        ["Sales Order", "docstatus", "=", 1],
+        ["Sales Order", "status", "in", ["To Bill", "To Deliver and Bill"]],
+        ["Sales Order", "per_billed", "<", 100],
+        ["Sales Order", "status", "!=", "Closed"],
+        ["Sales Order", "status", "!=", "Stopped"],
+    ]
+    fields = ["name", "customer", "grand_total", "per_billed"]
 
-        if not pending_orders:
-            logger.info("No pending Sales Orders to process for organization %s", organization_id)
-            return {"status": "success", "invoices_created": 0, "details": []}
+    while True:
+        sos = client.list_sales_orders(filters=common_filters, fields=fields, limit=limit, offset=offset)
+        if not sos:
+            break
 
-        logger.info("Found %d pending Sales Orders for organization %s", len(pending_orders), organization_id)
-        
-        created_invoices = []
-        errors = []
-
-        for order in pending_orders:
-            order_name = order.get("name")
-            if not order_name:
-                continue
-            
+        for so in sos:
+            so_name = so["name"]
             try:
-                invoice_doc = client.create_sales_invoice_from_order(order_name)
-                logger.info("Successfully created Sales Invoice %s from Sales Order %s", invoice_doc.get("name"), order_name)
-                created_invoices.append(invoice_doc.get("name"))
+                # Si necesitas due_date = posting_date (contado) o regla de crédito, calcula aquí
+                client.create_and_submit_invoice_from_order(so_name, update_stock=False)
+                logger.info("Submitted SI from SO %s", so_name)
             except ERPNextClientError as e:
-                logger.error("Failed to create invoice for Sales Order %s: %s", order_name, e)
-                errors.append({"sales_order": order_name, "error": str(e)})
+                logger.exception("Failed SI for SO %s: %s", so_name, e)
+                # continúa con el siguiente (no abortar el batch)
+                continue
 
-        result = {
-            "status": "partial_success" if errors else "success",
-            "invoices_created": len(created_invoices),
-            "errors": len(errors),
-            "details": {
-                "created": created_invoices,
-                "failed": errors,
-            }
-        }
-        logger.info("Finished task for organization %s with result: %s", organization_id, result)
-        return result
-
-    except ERPNextClientError as e:
-        logger.error("Task failed for organization %s during client operation: %s", organization_id, e)
-        return {"status": "error", "message": str(e)}
-    except Exception as e:
-        logger.exception("An unexpected error occurred in task for organization %s", organization_id)
-        return {"status": "error", "message": "An unexpected internal error occurred."}
-
+        if len(sos) < limit:
+            break
+        offset += limit
