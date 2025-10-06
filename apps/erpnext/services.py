@@ -60,6 +60,31 @@ class ERPNextClient:
             return data["data"]
         raise ERPNextClientError("Invalid response format for list_sales_orders")
 
+    def get_item(self, item_code: str) -> dict:
+        """Fetches a single Item document from ERPNext."""
+        endpoint = f"/api/resource/Item/{item_code}"
+        response = self.request("GET", endpoint)
+        if isinstance(response, dict) and "data" in response:
+            return response["data"]
+        raise ERPNextClientError("Invalid response format for get_item")
+
+    def get_stock_levels(self, filters: list | None = None, fields: list | None = None, limit: int = 100, offset: int = 0) -> list:
+        """Fetches stock level data from the Bin doctype."""
+        endpoint = "/api/resource/Bin"
+        params = {
+            "limit_page_length": limit,
+            "limit_start": offset,
+        }
+        if fields:
+            params["fields"] = str(fields)
+        if filters:
+            params["filters"] = str(filters)
+
+        response = self.request("GET", endpoint, params=params)
+        if isinstance(response, dict) and "data" in response:
+            return response["data"]
+        raise ERPNextClientError("Invalid response format for get_stock_levels")
+
     # ---------- MAPPER SO -> SI ----------
     def map_sales_order_to_invoice(self, sales_order_name: str) -> dict:
         """Devuelve el doc de Sales Invoice (AÚN no guardado) mapeado desde una Sales Order."""
