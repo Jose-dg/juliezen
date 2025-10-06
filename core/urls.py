@@ -15,6 +15,7 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/alegra/", include(("apps.alegra.urls", "alegra"), namespace="alegra")),
     path("api/erpnext/", include(("apps.erpnext.urls", "erpnext"), namespace="erpnext")),
+    path("api/shopify/", include(("apps.shopify.urls", "shopify"), namespace="shopify")),
 
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),

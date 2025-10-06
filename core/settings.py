@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     "apps.recommendations",
     "apps.notifications",
     "apps.erpnext",
+    "apps.shopify"
 ]
 
 MIDDLEWARE = [
