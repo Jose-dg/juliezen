@@ -171,9 +171,7 @@ SIMPLE_JWT = {
 
 # CORS
 CORS_ALLOW_ALL_ORIGINS = False
-CORS_ALLOWED_ORIGINS = [
-    env("FRONTEND_URL", default="http://localhost:3000"),
-]
+CORS_ALLOWED_ORIGINS = [env("FRONTEND_URL")]
 
 if ENVIRONMENT == "local":
     INTERNAL_IPS = ["127.0.0.1", "0.0.0.0", "localhost"]
@@ -189,3 +187,21 @@ if ENVIRONMENT == "production":
     SECURE_HSTS_PRELOAD = True
 else:
     SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=False)
+
+# Logging configuration to show SQL queries in the console during development
+if DEBUG:
+    LOGGING = {
+        'version': 1,
+        'disable_existing_loggers': False,
+        'handlers': {
+            'console': {
+                'class': 'logging.StreamHandler',
+            },
+        },
+        'loggers': {
+            'django.db.backends': {
+                'handlers': ['console'],
+                'level': 'DEBUG',
+            },
+        },
+    }
