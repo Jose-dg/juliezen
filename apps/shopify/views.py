@@ -1,10 +1,8 @@
 import base64
 import hashlib
 import hmac
-import json
 
 from django.http import HttpRequest, HttpResponse
-from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -36,12 +34,21 @@ class ShopifyWebhookView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        # TODO: Re-enable signature validation once Shopify shared secret is confirmed.
-        # if not self._validate_webhook(request, store.webhook_shared_secret):
-        #     return Response(
-        #         {"detail": "Webhook signature validation failed."},
-        #         status=status.HTTP_403_FORBIDDEN,
-        #     )
+        if not store.webhook_shared_secret:
+            return Response(
+                {"detail": "Shopify webhook shared secret is not configured."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        print(
+            f"[ShopifyWebhookView] Incoming payload for {shopify_domain}: {request.body.decode('utf-8', errors='replace')}"
+        )
+
+        if not self._validate_webhook(request, store.webhook_shared_secret):
+            return Response(
+                {"detail": "Webhook signature validation failed."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         process_shopify_order.delay(str(store.organization_id), request.data)
 
