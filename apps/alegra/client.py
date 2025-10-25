@@ -8,7 +8,6 @@ from django.conf import settings
 from django.utils import timezone
 
 from apps.integrations.exceptions import AlegraAPIError, AlegraCredentialError
-from apps.alegra.models import AlegraCredential
 from apps.integrations.models import IntegrationMessage
 from apps.integrations.error_codes import extract_error_message, map_status
 
@@ -20,20 +19,22 @@ class AlegraClient:
 
     def __init__(
         self,
-        organization,
-        *,
-        credential: Optional[AlegraCredential] = None,
+        organization_id: uuid.UUID,
+        base_url: str,
+        api_key: str,
+        api_secret: str,
+        timeout_s: int,
+        max_retries: int,
         session: Optional[requests.Session] = None,
     ) -> None:
-        self.organization_id = self._as_uuid(organization)
-        self.credential = credential or self._get_active_credential()
-        if not self.credential or not self.credential.is_valid():
-            raise AlegraCredentialError("No hay credenciales de Alegra válidas para la organización")
+        self.organization_id = organization_id
+        self.base_url = base_url
+        self.api_key = api_key
+        self.api_secret = api_secret
+        self.timeout = timeout_s
+        self.max_retries = max_retries
 
         self.session = session or requests.Session()
-        self.base_url = getattr(settings, "ALEGRA_API_BASE_URL", self.credential.base_url)
-        self.timeout = getattr(settings, "ALEGRA_API_TIMEOUT", self.credential.timeout_s)
-        self.max_retries = getattr(settings, "ALEGRA_API_MAX_RETRIES", self.credential.max_retries)
 
     # ---------------------------------------------------------------------
     # Public API
@@ -113,16 +114,8 @@ class AlegraClient:
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
-    def _get_active_credential(self) -> Optional[AlegraCredential]:
-        return (
-            AlegraCredential.objects.active()
-            .filter(organization_id=self.organization_id)
-            .order_by("-updated_at")
-            .first()
-        )
-
     def _build_headers(self) -> Dict[str, str]:
-        token_bytes = self.credential.get_basic_auth_token().encode()
+        token_bytes = f"{self.api_key}:{self.api_secret}".encode()
         basic = base64.b64encode(token_bytes).decode()
         return {
             "Authorization": f"Basic {basic}",

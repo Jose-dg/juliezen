@@ -11,6 +11,16 @@ class ERPNextCredentialManager(models.Manager):
     def active(self):
         return self.get_queryset().filter(is_active=True)
 
+    def for_company(self, organization_id, company: str | None = None):
+        qs = self.active().filter(organization_id=organization_id)
+        if company:
+            normalized = str(company).strip()
+            # Prefer exact match, fall back to shared credentials
+            match = qs.filter(company__iexact=normalized).order_by("-updated_at").first()
+            if match:
+                return match
+        return qs.order_by("-updated_at").first()
+
 
 class ERPNextCredential(models.Model):
     """Stores API credentials for connecting to a specific ERPNext site."""
@@ -22,6 +32,13 @@ class ERPNextCredential(models.Model):
     erpnext_url = models.URLField(
         verbose_name=_("ERPNext Site URL"),
         help_text=_("The base URL of the ERPNext instance (e.g., https://mycompany.erpnext.com)"),
+    )
+    company = models.CharField(
+        max_length=140,
+        blank=True,
+        default="",
+        verbose_name=_("Company"),
+        help_text=_("ERPNext company that these credentials operate on; leave blank if shared."),
     )
     api_key = models.CharField(
         max_length=255,
@@ -47,7 +64,9 @@ class ERPNextCredential(models.Model):
         ordering = ["-created_at"]
         indexes = [
             models.Index(fields=("organization_id", "is_active"), name="idx_erpnext_org_active"),
+            models.Index(fields=("organization_id", "company"), name="idx_erpnext_org_company"),
         ]
 
     def __str__(self) -> str:
-        return f"{self.organization_id} - {self.erpnext_url}"
+        company = f" · {self.company}" if self.company else ""
+        return f"{self.organization_id}{company} - {self.erpnext_url}"

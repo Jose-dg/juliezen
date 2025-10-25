@@ -20,9 +20,9 @@ class ContactData:
     raw: Dict[str, Any]
 
 
-def process_erpnext_pos_invoice(payload: dict, organization_id: UUID, message_id: str) -> Dict[str, Any]:
-    """Process an ERPNext POS Invoice payload and create the invoice in Alegra."""
-    print("--- PASO 18: SERVICIO process_erpnext_pos_invoice INICIADO ---")
+def process_erpnext_sales_invoice(payload: dict, organization_id: UUID, message_id: str) -> Dict[str, Any]:
+    """Process an ERPNext Sales Invoice payload and create the invoice in Alegra."""
+    print("--- PASO 18: SERVICIO process_erpnext_sales_invoice INICIADO ---")
 
     payload = payload or {}
     organization = _get_organization(organization_id)
@@ -59,7 +59,7 @@ def process_erpnext_pos_invoice(payload: dict, organization_id: UUID, message_id
         "POST",
         "/invoices",
         json=invoice_payload,
-        event_type="erpnext.pos_invoice.create",
+        event_type="erpnext.sales_invoice.create",
         external_reference=external_reference,
     )
     print(f"--- PASO 23: RESPUESTA DE ALEGRA ---\n{response}")

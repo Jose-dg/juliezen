@@ -27,7 +27,7 @@ class ProcessERPNextInvoiceTests(SimpleTestCase):
         self.credential.auto_stamp_on_create = True
 
     @mock.patch.object(erpnext_invoice, "_get_active_credential")
-    @mock.patch("apps.alegra.services.erpnext_invoice.AlegraClient")
+    @mock.patch("apps.alegra.client.AlegraClient")
     def test_process_invoice_creates_contact_and_invoice(self, mock_client_cls, mock_get_credential):
         mock_client = mock.Mock()
         mock_client.request.side_effect = [
@@ -36,6 +36,11 @@ class ProcessERPNextInvoiceTests(SimpleTestCase):
             {"id": "INV-123"},
         ]
         mock_client_cls.return_value = mock_client
+        self.credential.base_url = "https://api.alegra.com/api/v1"
+        self.credential.email = "test@example.com"
+        self.credential.token = "test_token"
+        self.credential.timeout_s = 30
+        self.credential.max_retries = 3
         mock_get_credential.return_value = self.credential
 
         payload = {
@@ -43,6 +48,7 @@ class ProcessERPNextInvoiceTests(SimpleTestCase):
             "event": "on_submit",
             "name": "POS-INV-000123",
             "posting_date": "2025-10-02",
+            "company": "Company B",
             "currency": "COP",
             "grand_total": 52000,
             "customer": "CF-0001",
@@ -75,18 +81,19 @@ class ProcessERPNextInvoiceTests(SimpleTestCase):
             ],
         }
 
-        message = IntegrationMessage(
+        message_id = uuid.uuid4()
+
+        result = erpnext_invoice.process_erpnext_pos_invoice(payload, self.organization_id, str(message_id))
+
+        mock_client_cls.assert_called_once_with(
             organization_id=self.organization_id,
-            integration=IntegrationMessage.INTEGRATION_ALEGRA,
-            direction=IntegrationMessage.DIRECTION_INBOUND,
-            status=IntegrationMessage.STATUS_RECEIVED,
-            event_type="on_submit",
-            payload=payload,
+            base_url=self.credential.base_url,
+            api_key=self.credential.email,
+            api_secret=self.credential.token,
+            timeout_s=self.credential.timeout_s,
+            max_retries=self.credential.max_retries,
         )
-
-        result = erpnext_invoice.process_erpnext_pos_invoice(message)
-
-        mock_client_cls.assert_called_once_with(self.organization_id, credential=self.credential)
+        mock_get_credential.assert_called_once_with(self.organization_id, "Company B")
         self.assertEqual(mock_client.request.call_count, 3)
         method, path = mock_client.request.call_args_list[-1].args[:2]
         self.assertEqual((method, path), ("POST", "/invoices"))

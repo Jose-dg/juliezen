@@ -10,6 +10,7 @@ class IntegrationMessageAdmin(admin.ModelAdmin):
         "integration",
         "direction",
         "status",
+        "flow",
         "organization_id",
         "event_type",
         "external_reference",
@@ -57,7 +58,6 @@ class IntegrationMessageAdmin(admin.ModelAdmin):
             "Payload",
             {
                 "fields": ("payload", "response_payload"),
-                "classes": ("collapse",),
             },
         ),
         (
@@ -88,6 +88,16 @@ class IntegrationMessageAdmin(admin.ModelAdmin):
     )
 
     actions = ("resend_selected",)
+
+    @admin.display(description="Flow", ordering="integration")
+    def flow(self, obj):
+        if obj.integration == IntegrationMessage.INTEGRATION_SHOPIFY:
+            return "Shopify → API Gateway → ERPNext"
+        if obj.integration == IntegrationMessage.INTEGRATION_ALEGRA:
+            return "ERPNext → API Gateway →  Alegra"
+        if obj.integration == IntegrationMessage.INTEGRATION_ERPNEXT_POS:
+            return "ERPNext POS → API Gateway → ERPNext"
+        return "——"
 
     @admin.action(description="Reenviar mensajes seleccionados")
     def resend_selected(self, request, queryset):

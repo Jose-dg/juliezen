@@ -13,12 +13,15 @@ from apps.integrations.error_codes import classify_exception
 
 @shared_task(bind=True, autoretry_for=(), max_retries=5, retry_backoff=True)
 def process_integration_message(self, message_id: str) -> str:
-    print(f"\n{'--'*20} [TASK] Processing integration message ID: {message_id} {'--'*20}")
+    print(f"\n--- PASO 6: TAREA process_integration_message INICIADA ---\nMESSAGE_ID: {message_id}")
     message = IntegrationMessage.objects.filter(id=message_id).first()
     if not message:
+        print("--- ERROR: MENSAJE NO ENCONTRADO ---")
         return message_id
 
+    print(f"--- PASO 7: ESTADO Y DIRECCION DEL MENSAJE ---\nSTATUS: {message.status}\nDIRECTION: {message.direction}")
     if message.status not in {IntegrationMessage.STATUS_DISPATCHED, IntegrationMessage.STATUS_RECEIVED}:
+        print("--- MENSAJE YA PROCESADO, SALTANDO ---")
         return message_id
 
     if message.direction == IntegrationMessage.DIRECTION_INBOUND:
@@ -28,6 +31,7 @@ def process_integration_message(self, message_id: str) -> str:
 
 
 def _process_inbound_message(task, message: IntegrationMessage) -> str:
+    print("--- PASO 8: PROCESANDO MENSAJE INBOUND ---")
     event = IntegrationInboundEvent(
         company_id=str(message.organization_id),
         integration=message.integration,
@@ -38,16 +42,22 @@ def _process_inbound_message(task, message: IntegrationMessage) -> str:
     )
 
     try:
+        print("--- PASO 9: PUBLICANDO EVENTO EN EVENT BUS ---")
         results: List[Any] = event_bus.publish(event)
+        print(f"--- PASO 10: RESULTADOS DEL EVENT BUS ---\n{results}")
+        print("--- PASO 11: DESPACHANDO A REGISTRY ---")
         results.extend(registry.dispatch(message.integration, message.event_type or None, message))
+        print(f"--- PASO 12: RESULTADOS DEL REGISTRY ---\n{results}")
         message.mark_acknowledged()
         message.mark_processed(
             response={"handlers": len(results), "results": [repr(r) for r in results]},
             http_status=202,
             latency_ms=None,
         )
+        print("--- PASO 13: MENSAJE PROCESADO EXITOSAMENTE ---")
         return str(message.id)
     except Exception as exc:
+        print(f"--- ERROR DURANTE EL PROCESAMIENTO ---\n{exc}")
         error_code, retryable, status_code = classify_exception(exc)
         message.mark_acknowledged()
         summary = {

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from django.shortcuts import get_object_or_404
 from django.utils.crypto import constant_time_compare
 from rest_framework import status
@@ -5,15 +7,17 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.organizations.models import Organization
+from apps.alegra.models import AlegraCredential
 from apps.integrations.exceptions import WebhookValidationError
 from apps.integrations.models import IntegrationMessage
-from .models import AlegraCredential
 from apps.integrations.tasks import process_integration_message
 from apps.integrations.utils import record_integration_message
+from apps.organizations.models import Organization
 
 
-class AlegraWebhookView(APIView):
+class WebhookGateway(APIView):
+    """Webhook receptor de Alegra que encola el mensaje para el pipeline de integraciones."""
+
     permission_classes = [AllowAny]
     authentication_classes: list = []
 
@@ -27,14 +31,7 @@ class AlegraWebhookView(APIView):
             return Response({"detail": str(exc)}, status=status.HTTP_403_FORBIDDEN)
 
         event_type = payload.get("event") or payload.get("type", "")
-        external_reference = ""
-        if payload.get("id"):
-            external_reference = str(payload["id"])
-        else:
-            data = payload.get("data")
-            if isinstance(data, dict) and data.get("id"):
-                external_reference = str(data["id"])
-
+        external_reference = self._extract_external_reference(payload)
         idempotency_key = payload.get("idempotency_key") or external_reference
 
         message = record_integration_message(
@@ -58,7 +55,15 @@ class AlegraWebhookView(APIView):
             status=status.HTTP_202_ACCEPTED,
         )
 
-    def _get_credential(self, organization) -> AlegraCredential:
+    def _extract_external_reference(self, payload: dict) -> str:
+        if payload.get("id"):
+            return str(payload["id"])
+        data = payload.get("data")
+        if isinstance(data, dict) and data.get("id"):
+            return str(data["id"])
+        return ""
+
+    def _get_credential(self, organization: Organization) -> AlegraCredential:
         credential = (
             AlegraCredential.objects.active()
             .filter(organization_id=organization.id)
@@ -78,3 +83,51 @@ class AlegraWebhookView(APIView):
         stored_secret = credential.webhook_secret or ""
         if not constant_time_compare(secret, stored_secret):
             raise WebhookValidationError("Webhook secret inválido")
+
+class ERPNextPOSWebhookView(APIView):
+    """Webhook que recibe eventos POS de ERPNext y los encola para fulfillment."""
+
+    permission_classes = [AllowAny]
+    authentication_classes: list = []
+
+    def post(self, request, organization_id, *args, **kwargs):
+        print("--- PASO 1: ERPNextPOSWebhookView.post RECIBIDO ---")
+        organization = get_object_or_404(Organization, id=organization_id)
+        if isinstance(request.data, dict):
+            payload = dict(request.data)
+        else:
+            payload = request.data.dict()
+        print(f"--- PASO 2: PAYLOAD RECIBIDO ---\n{payload}")
+
+        event_type = (
+            payload.get("event")
+            or request.query_params.get("event")
+            or "sales_invoice.on_submit"
+        )
+        external_reference = (
+            payload.get("name")
+            or payload.get("invoice_name")
+            or payload.get("pos_profile")
+            or payload.get("id")
+            or ""
+        )
+        print(f"--- PASO 3: EVENT_TYPE Y EXTERNAL_REFERENCE ---\nEVENT_TYPE: {event_type}\nEXTERNAL_REFERENCE: {external_reference}")
+
+        message = record_integration_message(
+            organization_id=organization.id,
+            direction=IntegrationMessage.DIRECTION_INBOUND,
+            integration=IntegrationMessage.INTEGRATION_ERPNEXT_POS,
+            event_type=str(event_type),
+            payload=payload,
+            external_reference=str(external_reference),
+            idempotency_key=str(external_reference or payload.get("name") or ""),
+        )
+        print(f"--- PASO 4: MENSAJE DE INTEGRACION CREADO ---\nMESSAGE_ID: {message.id}")
+        message.mark_dispatched(http_status=status.HTTP_202_ACCEPTED)
+        print(f"--- PASO 5: ENCOLANDO TAREA process_integration_message ---")
+        process_integration_message.delay(str(message.id))
+
+        return Response(
+            {"detail": "Webhook accepted", "message_id": str(message.id)},
+            status=status.HTTP_202_ACCEPTED,
+        )

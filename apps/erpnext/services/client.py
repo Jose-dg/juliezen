@@ -83,7 +83,50 @@ class ERPNextClient:
         response = self.request("GET", endpoint, params=params)
         if isinstance(response, dict) and "data" in response:
             return response["data"]
-        raise ERPNextClientError("Invalid response format for get_stock_levels")
+            raise ERPNextClientError("Invalid response format for get_stock_levels")
+
+    def get_doc(self, doctype: str, name: str) -> dict:
+        """Fetch a single document by doctype/name."""
+        endpoint = f"/api/resource/{doctype.replace(' ', '%20')}/{name}"
+        response = self.request("GET", endpoint)
+        if isinstance(response, dict) and "data" in response:
+            return response["data"]
+        return response if isinstance(response, dict) else {"data": response}
+
+    def update_doc(self, doctype: str, name: str, payload: dict) -> dict:
+        """Update an existing document."""
+        endpoint = f"/api/resource/{doctype.replace(' ', '%20')}/{name}"
+        response = self.request("PUT", endpoint, json=payload)
+        if isinstance(response, dict):
+            return response.get("data") or response.get("message") or response
+        return response
+
+    def list_serial_numbers(
+        self,
+        *,
+        item_code: str,
+        warehouse: str | None = None,
+        status: str = "Available",
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list:
+        """List Serial Numbers filtered by item/warehouse/status."""
+        endpoint = "/api/resource/Serial No"
+        filters = [["item_code", "=", item_code]]
+        if status:
+            filters.append(["status", "=", status])
+        if warehouse:
+            filters.append(["warehouse", "=", warehouse])
+        params = {
+            "filters": json.dumps(filters),
+            "fields": json.dumps(["name", "serial_no", "warehouse", "status"]),
+            "limit_page_length": limit,
+            "limit_start": offset,
+        }
+        response = self.request("GET", endpoint, params=params)
+        if isinstance(response, dict) and "data" in response:
+            return response["data"]
+        raise ERPNextClientError("Invalid response format for list_serial_numbers")
 
     # ---------- MAPPER SO -> SI ----------
     def map_sales_order_to_invoice(self, sales_order_name: str) -> dict:

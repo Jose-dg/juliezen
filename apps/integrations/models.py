@@ -26,6 +26,8 @@ class IntegrationMessage(models.Model):
     """Registro persistente de mensajes de integraciones."""
 
     INTEGRATION_ALEGRA = "alegra"
+    INTEGRATION_SHOPIFY = "shopify"
+    INTEGRATION_ERPNEXT_POS = "erpnext_pos"
 
     DIRECTION_INBOUND = "inbound"
     DIRECTION_OUTBOUND = "outbound"
@@ -223,3 +225,262 @@ class IntegrationMessage(models.Model):
     def _backoff_delay(retries: int) -> int:
         base = 5 * (2 ** min(retries, 6))
         return min(base, 3600)
+    
+
+# {
+#        "integrations": {
+#          "shopify_to_erpnext": {
+#            "company_selector": {
+#              "tag_prefix": "cia:",
+#              "domain_map": {
+#                "229f93-2.myshopify.com": "TST",
+#                "22sde3-2.myshopify.com": "M4G",
+#                "229f23sd3-2.myshopify.com": "LAB"
+#             },
+#             "default_company": "TST"
+#           },
+#           "territory": "Colombia",
+#           "currency": "COP",
+#           "naming_series": "SINV-",
+#           "set_posting_time": true,
+#           "update_stock": true,
+#           "due_days": 0,
+#           "price_list": "Tarifa Estándar de Venta",
+#           "price_list_currency": "COP",
+#           "default_customer": "Cliente Contado",
+#           "default_uom": "Unidad",
+#           "shipping_item_code": "ENVIO",
+#           "shipping_item_name": "Costo de Envío",
+#           "item_code_map": {
+#             "SKU_PRODUCTO_A": "ERP_CODIGO_A",
+#             "SKU_PRODUCTO_B": "ERP_CODIGO_B",
+#             "711719510674": "PS-GIFT-CARD-50",
+#             "799366664771": "PS-GIFT-CARD-25",
+#             "14633376753": "JUEGO-FIFA-22-PS4"
+#           },
+#           "receivable_account": "130505 - Clientes Nacionales - TST",
+#           "debit_to": "130505 - Clientes Nacionales - TST",
+#           "default_income_account": "4135 - Comercio al por mayor y al por menor - TST",
+#           "default_cost_center": "Principal - TST",
+#           "default_warehouse": "Almacén Principal - TST",
+#           "tax_charge_type": "On Net Total",
+#           "default_tax_account": "240801 - Impuesto sobre las ventas por pagar - TST",
+#           "tax_account_map": {
+#             "IVA 19%": "24080101 - IVA Generado 19% - TST",
+#             "IVA 5%": "24080102 - IVA Generado 5% - TST"
+#           }
+#         }
+#       }
+#     }
+
+
+class FulfillmentItemMapQuerySet(models.QuerySet):
+    def active(self):
+        return self.filter(is_active=True)
+
+    def for_source(self, *, organization_id, source: str, source_company: str):
+        return (
+            self.active()
+            .filter(
+                organization_id=organization_id,
+                source=source,
+                source_company=source_company,
+            )
+        )
+
+
+class FulfillmentItemMap(models.Model):
+    SOURCE_ERPNEXT = "erpnext"
+    SOURCE_SHOPIFY = "shopify"
+    SOURCE_CHOICES = (
+        (SOURCE_ERPNEXT, "ERPNext"),
+        (SOURCE_SHOPIFY, "Shopify"),
+    )
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization_id = models.UUIDField(db_index=True)
+    source = models.CharField(max_length=32, choices=SOURCE_CHOICES)
+    source_company = models.CharField(max_length=140)
+    source_item_code = models.CharField(max_length=140)
+    target_company = models.CharField(max_length=140)
+    target_item_code = models.CharField(max_length=140)
+    warehouse = models.CharField(max_length=140, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    objects = FulfillmentItemMapQuerySet.as_manager()
+
+    class Meta:
+        app_label = "integrations"
+        ordering = ("organization_id", "source", "source_company", "source_item_code")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("organization_id", "source", "source_company", "source_item_code"),
+                name="uniq_fmap_source_item",
+            ),
+        ]
+
+    def __str__(self) -> str:  # pragma: no cover - debug aid
+        return (
+            f"{self.organization_id} · {self.source}/{self.source_company}:{self.source_item_code}"
+            f" → {self.target_company}:{self.target_item_code}"
+        )
+
+
+class FulfillmentOrderQuerySet(models.QuerySet):
+    def for_order(self, *, organization_id, source: str, order_id: str):
+        return self.filter(organization_id=organization_id, source=source, order_id=order_id)
+
+    def needing_retry(self):
+        now = timezone.now()
+        return self.filter(status=self.model.STATUS_WAITING_STOCK).filter(
+            models.Q(next_attempt_at__isnull=True) | models.Q(next_attempt_at__lte=now)
+        )
+
+
+class FulfillmentOrder(models.Model):
+    STATUS_PENDING = "pending"
+    STATUS_PROCESSING = "processing"
+    STATUS_WAITING_STOCK = "waiting_stock"
+    STATUS_FULFILLED = "fulfilled"
+    STATUS_FAILED = "failed"
+    STATUS_RETURNED = "returned"
+    STATUS_CHOICES = (
+        (STATUS_PENDING, "Pending"),
+        (STATUS_PROCESSING, "Processing"),
+        (STATUS_WAITING_STOCK, "Waiting Stock"),
+        (STATUS_FULFILLED, "Fulfilled"),
+        (STATUS_FAILED, "Failed"),
+        (STATUS_RETURNED, "Returned"),
+    )
+
+    SOURCE_CHOICES = FulfillmentItemMap.SOURCE_CHOICES
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization_id = models.UUIDField(db_index=True)
+    source = models.CharField(max_length=32, choices=SOURCE_CHOICES)
+    order_id = models.CharField(max_length=191)
+    seller_company = models.CharField(max_length=140)
+    distributor_company = models.CharField(max_length=140)
+    status = models.CharField(max_length=32, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    payload = models.JSONField(default=dict, blank=True)
+    normalized_order = models.JSONField(default=dict, blank=True)
+    fulfillment_payload = models.JSONField(default=dict, blank=True)
+    result_payload = models.JSONField(default=dict, blank=True)
+    serial_numbers = models.JSONField(default=list, blank=True)
+    sales_order_name = models.CharField(max_length=140, blank=True)
+    delivery_note_name = models.CharField(max_length=140, blank=True)
+    delivery_note_submitted_at = models.DateTimeField(blank=True, null=True)
+    return_delivery_note_name = models.CharField(max_length=140, blank=True)
+    return_delivery_note_submitted_at = models.DateTimeField(blank=True, null=True)
+    return_payload = models.JSONField(default=dict, blank=True)
+    backorder_attempts = models.PositiveIntegerField(default=0)
+    last_error_code = models.CharField(max_length=64, blank=True)
+    last_error_message = models.TextField(blank=True)
+    next_attempt_at = models.DateTimeField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    objects = FulfillmentOrderQuerySet.as_manager()
+
+    class Meta:
+        app_label = "integrations"
+        ordering = ("-created_at",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=("organization_id", "source", "order_id"),
+                name="uniq_fulfillment_order",
+            )
+        ]
+
+    def mark_status(self, status: str, *, error_code: str = "", error_message: str = "", next_attempt_at=None):
+        updates = {"status": status}
+        if error_code is not None:
+            updates["last_error_code"] = error_code
+        if error_message is not None:
+            updates["last_error_message"] = error_message
+        updates["updated_at"] = timezone.now()
+        updates["next_attempt_at"] = next_attempt_at
+        for field, value in updates.items():
+            setattr(self, field, value)
+        self.save(
+            update_fields=list(updates.keys())
+        )
+
+    def record_fulfillment(
+        self,
+        *,
+        delivery_note: str,
+        serials: list[str],
+        sales_order: str | None = None,
+        result_payload: dict | None = None,
+    ):
+        self.delivery_note_name = delivery_note
+        self.sales_order_name = sales_order or ""
+        self.serial_numbers = serials
+        self.result_payload = result_payload or {}
+        self.delivery_note_submitted_at = timezone.now()
+        self.status = self.STATUS_FULFILLED
+        self.last_error_code = ""
+        self.last_error_message = ""
+        self.next_attempt_at = None
+        self.save(
+            update_fields=[
+                "delivery_note_name",
+                "sales_order_name",
+                "serial_numbers",
+                "result_payload",
+                "delivery_note_submitted_at",
+                "status",
+                "last_error_code",
+                "last_error_message",
+                "next_attempt_at",
+                "updated_at",
+            ]
+        )
+
+    def record_return(
+        self,
+        *,
+        delivery_note: str,
+        payload: dict | None = None,
+    ):
+        self.return_delivery_note_name = delivery_note
+        self.return_delivery_note_submitted_at = timezone.now()
+        self.return_payload = payload or {}
+        self.status = self.STATUS_RETURNED
+        self.last_error_code = ""
+        self.last_error_message = ""
+        self.next_attempt_at = None
+        self.save(
+            update_fields=[
+                "return_delivery_note_name",
+                "return_delivery_note_submitted_at",
+                "return_payload",
+                "status",
+                "last_error_code",
+                "last_error_message",
+                "next_attempt_at",
+                "updated_at",
+            ]
+        )
+
+    def mark_waiting_stock(self, *, error_message: str = "", delay_seconds: int = 900):
+        self.status = self.STATUS_WAITING_STOCK
+        self.backorder_attempts += 1
+        self.last_error_code = "waiting_stock"
+        self.last_error_message = error_message
+        self.next_attempt_at = timezone.now() + timedelta(seconds=delay_seconds)
+        self.updated_at = timezone.now()
+        self.save(
+            update_fields=[
+                "status",
+                "backorder_attempts",
+                "last_error_code",
+                "last_error_message",
+                "next_attempt_at",
+                "updated_at",
+            ]
+        )

@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from typing import Any, Tuple
 
-from apps.integrations.exceptions import AlegraAPIError, AlegraCredentialError
+from apps.integrations.exceptions import (
+    AlegraAPIError,
+    AlegraCredentialError,
+    FulfillmentError,
+)
 
 ALEGRA_STATUS_MAP: dict[int, tuple[str, bool]] = {
     400: ("validation_error", False),
@@ -44,4 +48,6 @@ def classify_exception(exc: Exception) -> tuple[str, bool, int | None]:
         return error_code, retryable, exc.status_code
     if isinstance(exc, AlegraCredentialError):
         return "credential_error", False, None
+    if isinstance(exc, FulfillmentError):
+        return exc.error_code, exc.retryable, exc.status_code
     return "unexpected_error", False, None

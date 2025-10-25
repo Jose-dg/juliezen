@@ -5,7 +5,7 @@ The `urlpatterns` list routes URLs to views. For more information please see:
     https://docs.djangoproject.com/en/5.2/topics/http/urls/
 """
 from django.contrib import admin
-from django.urls import path, include
+from django.urls import include, path
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
@@ -13,6 +13,7 @@ from rest_framework_simplejwt.views import (
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    path("api/integrations/", include(("apps.integrations.urls", "integrations"), namespace="integrations")),
     path("api/alegra/", include(("apps.alegra.urls", "alegra"), namespace="alegra")),
     path("api/erpnext/", include(("apps.erpnext.urls", "erpnext"), namespace="erpnext")),
     path("api/shopify/", include(("apps.shopify.urls", "shopify"), namespace="shopify")),
