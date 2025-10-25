@@ -7,5 +7,11 @@ class IntegrationsConfig(AppConfig):
     verbose_name = "Integrations"
 
     def ready(self) -> None:  # pragma: no cover
-        from . import handlers  # noqa: F401
-        return super().ready()
+        super().ready()
+        # Import here to avoid circular dependencies at startup
+        from events import event_bus
+        from events.events.integration_events import ShopifyWebhookReceivedEvent
+        from .handlers.listeners import handle_shopify_webhook_received
+
+        event_bus.subscribe(ShopifyWebhookReceivedEvent, handle_shopify_webhook_received)
+        print("[INTEGRATIONS APP] Subscribed handle_shopify_webhook_received to ShopifyWebhookReceivedEvent")

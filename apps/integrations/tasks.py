@@ -13,6 +13,7 @@ from apps.integrations.error_codes import classify_exception
 
 @shared_task(bind=True, autoretry_for=(), max_retries=5, retry_backoff=True)
 def process_integration_message(self, message_id: str) -> str:
+    print(f"\n{'--'*20} [TASK] Processing integration message ID: {message_id} {'--'*20}")
     message = IntegrationMessage.objects.filter(id=message_id).first()
     if not message:
         return message_id

@@ -15,6 +15,7 @@ class EventBus:
         self._responses: Dict[str, Any] = {}
 
     def subscribe(self, event_type: str, handler: Handler) -> None:
+        print(f"[EVENTBUS] Subscribing {handler.__name__} to {event_type}")
         with self._lock:
             if handler not in self._subscribers[event_type]:
                 self._subscribers[event_type].append(handler)
@@ -27,6 +28,7 @@ class EventBus:
 
     def publish(self, event: DomainEvent) -> List[Any]:
         handlers = list(self._subscribers.get(event.event_type, []))
+        print(f"[EVENTBUS] Publishing {event.event_type} to {len(handlers)} handlers.")
         results: List[Any] = []
         for handler in handlers:
             result = handler(event)

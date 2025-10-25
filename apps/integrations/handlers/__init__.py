@@ -1,3 +1,3 @@
-from . import alegra  # noqa: F401
+from . import registry  # noqa: F401
 
-__all__ = ["alegra"]
+__all__ = ["registry"]

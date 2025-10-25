@@ -32,3 +32,16 @@ class IntegrationOutboundEvent(DomainEvent):
 
     def get_aggregate_id(self) -> str:
         return self.message_id or self.external_reference or self.company_id
+
+
+@dataclass
+class ShopifyWebhookReceivedEvent(DomainEvent):
+    event_id: str = field(default_factory=lambda: str(uuid4()))
+    event_type: str = "shopify.webhook.received"
+    shopify_domain: str = ""
+    headers: Dict[str, Any] = field(default_factory=dict)
+    body: Dict[str, Any] = field(default_factory=dict)
+    raw_body: bytes = b""
+
+    def get_aggregate_id(self) -> str:
+        return self.shopify_domain
