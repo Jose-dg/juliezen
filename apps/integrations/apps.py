@@ -13,5 +13,5 @@ class IntegrationsConfig(AppConfig):
         from events.events.integration_events import ShopifyWebhookReceivedEvent
         from .handlers.listeners import handle_shopify_webhook_received
 
-        event_bus.subscribe(ShopifyWebhookReceivedEvent, handle_shopify_webhook_received)
+        event_bus.subscribe(ShopifyWebhookReceivedEvent.event_type, handle_shopify_webhook_received)
         print("[INTEGRATIONS APP] Subscribed handle_shopify_webhook_received to ShopifyWebhookReceivedEvent")

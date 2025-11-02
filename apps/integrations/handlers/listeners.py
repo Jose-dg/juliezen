@@ -2,6 +2,8 @@ import base64
 import hashlib
 import hmac
 
+from django.conf import settings
+
 from apps.integrations.models import IntegrationMessage
 from apps.integrations.tasks import process_integration_message
 from apps.integrations.utils import record_integration_message
@@ -46,10 +48,13 @@ def handle_shopify_webhook_received(event):
         print(f"[LISTENER] ERROR: Shopify webhook shared secret is not configured for domain: {shopify_domain}")
         return
 
-    signature = headers.get("X-Shopify-Hmac-Sha256")
-    if not _validate_webhook(store.webhook_shared_secret, signature, raw_body):
-        print(f"[LISTENER] ERROR: Webhook signature validation failed for domain: {shopify_domain}")
-        return
+    if not settings.DEBUG:
+        signature = headers.get("X-Shopify-Hmac-Sha256")
+        if not _validate_webhook(store.webhook_shared_secret, signature, raw_body):
+            print(f"[LISTENER] ERROR: Webhook signature validation failed for domain: {shopify_domain}")
+            return
+    else:
+        print("[LISTENER] WARNING: Webhook signature validation is disabled in DEBUG mode.")
 
     topic = headers.get("X-Shopify-Topic", "")
     event_type = topic.replace("/", ".") if topic else ""

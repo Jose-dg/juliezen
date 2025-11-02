@@ -8,6 +8,7 @@ from events.events.alegra_events import ErpnextPosInvoiceSubmitted, ErpnextSales
 from apps.erpnext.gateway import process_fulfillment_message
 from apps.integrations.models import IntegrationMessage
 from apps.integrations.router import registry
+from apps.erpnext.services.alegra_invoice_sync import ERPNextToAlegraInvoiceService
 
 logger = logging.getLogger(__name__)
 
@@ -124,8 +125,22 @@ def handle_shopify_fulfillment(message: IntegrationMessage) -> Dict[str, Any]:
 @registry.register(IntegrationMessage.INTEGRATION_ERPNEXT_POS)
 def handle_erpnext_pos_fulfillment(message: IntegrationMessage) -> Dict[str, Any]:
     if message.event_type and message.event_type not in ERPNEXT_EVENTS:
-        logger.debug("[FULFILLMENT] ERPNext event %s skipped.", message.event_type)
+        logger.debug("[ERPNEXT] Event %s skipped as not in ERPNEXT_EVENTS.", message.event_type)
         return {"skipped": True, "reason": "unsupported_event"}
-    result = process_fulfillment_message(message)
-    return {"status": "processed", "result": result}
+
+    # Check if the event is for Sales Invoice or POS Invoice submission
+    if message.event_type in {"sales_invoice.on_submit", "pos_invoice.on_submit"}:
+        logger.info("[ERPNEXT] Processing ERPNext invoice submission to Alegra.")
+        try:
+            service = ERPNextToAlegraInvoiceService(message)
+            result = service.process()
+            return {"status": "processed_to_alegra", "result": result}
+        except Exception as e:
+            logger.exception(f"[ERPNEXT] Error processing ERPNext invoice to Alegra: {e}")
+            raise # Re-raise for task retry/failure
+    else:
+        # Existing fulfillment logic for other ERPNext events (if any)
+        logger.info("[ERPNEXT] Processing ERPNext event with fulfillment logic.")
+        result = process_fulfillment_message(message)
+        return {"status": "processed_fulfillment", "result": result}
 

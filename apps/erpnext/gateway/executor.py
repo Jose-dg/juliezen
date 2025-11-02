@@ -20,37 +20,7 @@ class FulfillmentResult:
     sales_order: Optional[str] = None
 
 
-class SerialAllocator:
-    """Load serial numbers from ERPNext for a given item/warehouse."""
 
-    def __init__(self, client: ERPNextClient, status: str):
-        self.client = client
-        self.status = status
-
-    def allocate(self, *, item_code: str, quantity: int, warehouse: Optional[str]) -> List[str]:
-        serials: List[str] = []
-        offset = 0
-        page_size = max(quantity * 2, 20)
-        while len(serials) < quantity:
-            batch = self.client.list_serial_numbers(
-                item_code=item_code,
-                warehouse=warehouse,
-                status=self.status,
-                limit=page_size,
-                offset=offset,
-            )
-            if not batch:
-                break
-            for row in batch:
-                serial = row.get("serial_no") or row.get("name")
-                if serial and serial not in serials:
-                    serials.append(serial)
-                    if len(serials) == quantity:
-                        break
-            offset += len(batch)
-            if len(batch) < page_size:
-                break
-        return serials
 
 
 class FulfillmentExecutor:
@@ -59,24 +29,41 @@ class FulfillmentExecutor:
     def __init__(self, client: ERPNextClient, settings: GatewaySettings):
         self.client = client
         self.settings = settings
-        self.serial_allocator = SerialAllocator(client, status=settings.serial_status)
 
     def assign_serials(self, lines: List[MappedOrderLineDTO]) -> None:
         insufficient: List[str] = []
         for line in lines:
-            quantity = int(line.quantity)
-            serials = self.serial_allocator.allocate(
-                item_code=line.target_item_code,
-                quantity=quantity,
-                warehouse=line.warehouse,
+            required = line.quantity
+            if not required or required <= 0:
+                continue
+
+            print(
+                f"--- EXECUTOR: VERIFICANDO STOCK EN ERPNEXT ---\n"
+                f"Item Code: {line.target_item_code}\n"
+                f"Warehouse: {line.warehouse}\n"
+                f"Cantidad Requerida: {required}"
             )
-            if len(serials) < quantity:
+
+            stock_levels = self.client.get_stock_levels(
+                filters=[
+                    ["item_code", "=", line.target_item_code],
+                    ["warehouse", "=", line.warehouse],
+                ],
+                fields=["actual_qty"],
+                limit=1,
+            )
+
+            actual_qty = 0
+            if stock_levels and stock_levels[0].get("actual_qty") is not None:
+                actual_qty = stock_levels[0]["actual_qty"]
+
+            if actual_qty < required:
                 insufficient.append(line.target_item_code)
-            else:
-                line.serial_numbers = serials
+            # No longer setting line.serial_numbers as ERPNext will handle it
+
         if insufficient:
             raise BackorderPending(
-                f"No hay seriales suficientes para: {', '.join(sorted(set(insufficient)))}"
+                f"No hay stock suficiente para: {', '.join(sorted(set(insufficient)))}"
             )
 
     def create_sales_order(self, order: OrderDTO, mapped_lines: List[MappedOrderLineDTO]) -> Optional[str]:
@@ -121,26 +108,17 @@ class FulfillmentExecutor:
         sales_order_name: Optional[str],
     ) -> FulfillmentResult:
         items_payload = []
+        # line_serials will now always be empty as our app doesn't assign serials
         line_serials: List[Dict[str, List[str]]] = []
         for line in mapped_lines:
-            serial_field = "\n".join(line.serial_numbers)
             item_entry = {
                 "item_code": line.target_item_code,
                 "qty": float(line.quantity),
-                "serial_no": serial_field,
                 "warehouse": line.warehouse,
             }
             if sales_order_name:
                 item_entry["against_sales_order"] = sales_order_name
             items_payload.append(item_entry)
-            line_serials.append(
-                {
-                    "item_code": line.target_item_code,
-                    "serials": list(line.serial_numbers),
-                    "warehouse": line.warehouse,
-                    "quantity": float(line.quantity),
-                }
-            )
 
         payload = {
             "doctype": "Delivery Note",
@@ -160,11 +138,11 @@ class FulfillmentExecutor:
         if isinstance(submit_response, dict) and submit_response.get("docstatus") != 1:
             raise FulfillmentError("No fue posible enviar la Delivery Note.", error_code="delivery_note_submit")
 
-        serials = [serial for line in mapped_lines for serial in line.serial_numbers]
+        # serials and line_serials will now always be empty as our app doesn't assign serials
         return FulfillmentResult(
             delivery_note=delivery_note_name,
-            serials=serials,
-            line_serials=line_serials,
+            serials=[],
+            line_serials=[],
             sales_order=sales_order_name,
         )
 

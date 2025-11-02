@@ -8,6 +8,7 @@ from apps.integrations.exceptions import (
     AlegraAPIError,
     AlegraCredentialError,
     FulfillmentError,
+    BackorderPending,
 )
 
 ALEGRA_STATUS_MAP: dict[int, tuple[str, bool]] = {

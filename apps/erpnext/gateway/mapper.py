@@ -65,10 +65,10 @@ class LineMapper:
                 target_item_code = meta_entry.get("target_item_code")
                 warehouse = meta_entry.get("warehouse")
             else:
-                raise FulfillmentError(
-                    f"No existe item_map para {order.source}/{order.seller_company}:{source_code}",
-                    error_code="missing_item_map",
-                )
+                # If no mapping is found, assume source SKU = target item code
+                target_company = order.distributor_company
+                target_item_code = source_code
+                warehouse = None
 
         if not target_item_code:
             raise FulfillmentError(

@@ -9,9 +9,10 @@ from events.events import IntegrationInboundEvent, IntegrationOutboundEvent
 from apps.integrations.models import IntegrationMessage
 from apps.integrations.router import registry
 from apps.integrations.error_codes import classify_exception
+from apps.integrations.exceptions import BackorderPending
 
 
-@shared_task(bind=True, autoretry_for=(), max_retries=5, retry_backoff=True)
+@shared_task(bind=True, autoretry_for=(BackorderPending,), max_retries=5, retry_backoff=True)
 def process_integration_message(self, message_id: str) -> str:
     print(f"\n--- PASO 6: TAREA process_integration_message INICIADA ---\nMESSAGE_ID: {message_id}")
     message = IntegrationMessage.objects.filter(id=message_id).first()
@@ -55,6 +56,10 @@ def _process_inbound_message(task, message: IntegrationMessage) -> str:
             latency_ms=None,
         )
         print("--- PASO 13: MENSAJE PROCESADO EXITOSAMENTE ---")
+        return str(message.id)
+    except BackorderPending as exc:
+        print(f"--- INFO: ORDEN EN BACKORDER (ESPERANDO STOCK) ---\n{exc}")
+        # The service layer already handled the status change, so we just log and exit gracefully.
         return str(message.id)
     except Exception as exc:
         print(f"--- ERROR DURANTE EL PROCESAMIENTO ---\n{exc}")

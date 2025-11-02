@@ -9,6 +9,7 @@ class GatewaySettings:
 
     def __init__(self, metadata: Dict[str, Any]):
         self.raw = (metadata or {}).get("fulfillment_gateway") or {}
+        print(f"--- SETTINGS: RAW FULFILLMENT GATEWAY METADATA ---\n{self.raw}")
         if not isinstance(self.raw, dict):
             raise GatewayConfigurationError("metadata.fulfillment_gateway debe ser un objeto JSON.")
 
@@ -86,11 +87,14 @@ class GatewaySettings:
             return str(explicit).strip()
 
         config = self.seller_config(source)
+        print(f"--- SETTINGS: SELLER CONFIG for source '{source}' ---\n{config}")
         default_company = config.get("default_company") or self.raw.get("default_seller_company")
 
         if source == "shopify":
             selector = config.get("company_selector") or {}
+            print(f"--- SETTINGS: COMPANY SELECTOR ---\n{selector}")
             company = self._resolve_shopify_company(selector, payload)
+            print(f"--- SETTINGS: RESOLVED SHOPIFY COMPANY ---\n{company}")
             if company:
                 return company
 
@@ -117,8 +121,10 @@ class GatewaySettings:
         domain_map = selector.get("domain_map") or {}
         if isinstance(domain_map, dict):
             domain = payload.get("_shopify_domain") or payload.get("domain")
+            print(f"--- SETTINGS: DOMAIN FROM PAYLOAD ---\n{domain}")
             if domain:
                 mapped = domain_map.get(domain) or domain_map.get(str(domain).lower())
+                print(f"--- SETTINGS: MAPPED COMPANY FROM DOMAIN_MAP ---\n{mapped}")
                 if mapped:
                     return str(mapped)
         return ""

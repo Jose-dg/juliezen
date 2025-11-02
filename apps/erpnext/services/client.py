@@ -76,9 +76,9 @@ class ERPNextClient:
             "limit_start": offset,
         }
         if fields:
-            params["fields"] = str(fields)
+            params["fields"] = json.dumps(fields)
         if filters:
-            params["filters"] = str(filters)
+            params["filters"] = json.dumps(filters)
 
         response = self.request("GET", endpoint, params=params)
         if isinstance(response, dict) and "data" in response:

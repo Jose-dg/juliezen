@@ -48,6 +48,34 @@ services:
       redis:
         condition: service_healthy
 
+  worker:
+    build: .
+    command: celery -A core.celery worker -l info
+    volumes:
+      - .:/app
+    environment:
+      - DATABASE_URL=postgresql://juliezen:12345@db:5432/juliezen
+      - REDIS_URL=redis://redis:6379/0
+      - DJANGO_SETTINGS_MODULE=core.settings
+      - SECRET_KEY=dev-secret-key-change-in-production
+      - DEBUG=True
+    depends_on:
+      - backend
+
+  celery-beat:
+    build: .
+    command: celery -A core.celery beat -l info
+    volumes:
+      - .:/app
+    environment:
+      - DATABASE_URL=postgresql://juliezen:12345@db:5432/juliezen
+      - REDIS_URL=redis://redis:6379/0
+      - DJANGO_SETTINGS_MODULE=core.settings
+      - SECRET_KEY=dev-secret-key-change-in-production
+      - DEBUG=True
+    depends_on:
+      - backend
+
 volumes:
   postgres_data:
   redis_data:
