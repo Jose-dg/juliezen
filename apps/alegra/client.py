@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import base64
 import logging
 import uuid
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import requests
 from django.conf import settings
@@ -174,3 +176,29 @@ class AlegraClient:
             return response.json()
         except ValueError:
             return {"raw": response.text}
+
+    # ------------------------------------------------------------------
+    # Customer (Contact) Management
+    # ------------------------------------------------------------------
+    def get_customer(self, customer_id: str) -> Optional[Dict[str, Any]]:
+        """Retrieves a single customer by ID."""
+        try:
+            return self.request("GET", f"contacts/{customer_id}", event_type="customer.get", external_reference=customer_id)
+        except AlegraAPIError as e:
+            if e.status_code == 404:
+                return None
+            raise
+
+    def search_customers(self, query: str) -> List[Dict[str, Any]]:
+        """Searches for customers by query (e.g., email, identification)."""
+        # Alegra's /contacts endpoint supports a 'query' parameter for searching.
+        # The documentation implies it searches across various fields.
+        return self.request("GET", "contacts", params={"query": query}, event_type="customer.search", external_reference=query)
+
+    def create_customer(self, customer_payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Creates a new customer in Alegra."""
+        return self.request("POST", "contacts", json=customer_payload, event_type="customer.create", external_reference=customer_payload.get("name"))
+
+    def create_invoice(self, invoice_payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Creates a new sales invoice in Alegra."""
+        return self.request("POST", "invoices", json=invoice_payload, event_type="invoice.create", external_reference=invoice_payload.get("client", {}).get("id"))

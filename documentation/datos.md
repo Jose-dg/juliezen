@@ -1,7 +1,7 @@
 Alegra credentials
 
 Organization id
-812f343d-b1a6-46ae-bb55-7e2c6f945308
+b7aa7c5c-bdbd-4959-8c98-0ad300d08024
 
 Name
 Diem
@@ -62,6 +62,8 @@ Metadata:
 {"fulfillment_gateway": {"currency": "COP", "due_days": 0, "territory": "Colombia", "price_list": "Tarifa Estándar de Venta", "default_uom": "Unidad", "update_stock": true, "item_code_map": {"14633376753": "JUEGO-FIFA-22-PS4", "711719510674": "PS-GIFT-CARD-50", "799366664771": "PS-GIFT-CARD-25", "SKU_PRODUCTO_A": "ERP_CODIGO_A", "SKU_PRODUCTO_B": "ERP_CODIGO_B"}, "naming_series": "SINV-", "tax_account_map": {"IVA 5%": "24080102 - IVA Generado 5% - M4G", "IVA 19%": "24080101 - IVA Generado 19% - M4G"}, "tax_charge_type": "On Net Total", "company_selector": {"domain_map": {"229f93-2.myshopify.com": "TST", "22sde3-2.myshopify.com": "M4G", "229f23sd3-2.myshopify.com": "LAB"}, "tag_prefix": "cia:", "default_company": "M4G"}, "default_customer": "Cliente Contado", "set_posting_time": true, "default_warehouse": "Almacén Principal - M4G", "receivable_account": "130505 - Clientes Nacionales - M4G", "shipping_item_code": "ENVIO", "shipping_item_name": "Costo de Envío", "default_cost_center": "Principal - M4G", "default_tax_account": "240801 - Impuesto sobre las ventas por pagar - M4G", "distributor_company": "Diem", "price_list_currency": "COP", "default_income_account": "4135 - Comercio al por mayor y al por menor - M4G"}}
 
 :::
+
+Shopify
 
 Organization
 812f343d-b1a6-46ae-bb55-7e2c6f945308

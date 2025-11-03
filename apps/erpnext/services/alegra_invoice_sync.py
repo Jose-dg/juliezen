@@ -16,7 +16,14 @@ class ERPNextToAlegraInvoiceService:
         self.payload = message.payload # The ERPNext webhook payload
 
         self.alegra_credential = self._load_alegra_credential(self.organization)
-        self.alegra_client = AlegraClient(self.alegra_credential)
+        self.alegra_client = AlegraClient(
+            organization_id=self.organization.id,
+            base_url=self.alegra_credential.base_url,
+            api_key=self.alegra_credential.email,
+            api_secret=self.alegra_credential.token,
+            timeout_s=self.alegra_credential.timeout_s,
+            max_retries=self.alegra_credential.max_retries,
+        )
 
     def process(self) -> Dict[str, Any]:
         # 1. Parse ERPNext payload
@@ -126,6 +133,8 @@ class ERPNextToAlegraInvoiceService:
         customer_email = erpnext_customer_data.get("email")
         customer_identification = erpnext_customer_data.get("identification")
 
+        logger.info(f"[ALEGRA] Customer data for Alegra: identification_type={erpnext_customer_data.get('identification_type')}, identification={customer_identification}")
+
         # 1. Try to find by custom_alegra_id (if provided by ERPNext)
         if alegra_customer_id:
             try:
@@ -162,6 +171,7 @@ class ERPNextToAlegraInvoiceService:
             "email": customer_email,
             "phone": erpnext_customer_data.get("phone"),
             "identification": customer_identification,
+            "identificationType": erpnext_customer_data.get("identification_type"),
             "address": {
                 "address": erpnext_customer_data.get("address", {}).get("line1"),
                 "city": erpnext_customer_data.get("address", {}).get("city"),
@@ -217,7 +227,6 @@ class ERPNextToAlegraInvoiceService:
                 "id": alegra_customer_id
             },
             "items": alegra_items,
-            "total": erpnext_invoice_data.get("grand_total"),
             "dueDate": erpnext_invoice_data.get("posting_date"), # Assuming due date is same as posting date for simplicity
             "observations": f"ERPNext Invoice: {invoice_name}",
             "anotations": f"ERPNext POS Profile: {pos_profile}",

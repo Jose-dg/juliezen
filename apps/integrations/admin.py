@@ -96,7 +96,7 @@ class IntegrationMessageAdmin(admin.ModelAdmin):
         if obj.integration == IntegrationMessage.INTEGRATION_ALEGRA:
             return "ERPNext → API Gateway →  Alegra"
         if obj.integration == IntegrationMessage.INTEGRATION_ERPNEXT_POS:
-            return "ERPNext POS → API Gateway → ERPNext"
+            return "ERPNext POS → API Gateway → Alegra"
         return "——"
 
     @admin.action(description="Reenviar mensajes seleccionados")

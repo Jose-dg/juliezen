@@ -99,11 +99,17 @@ class ERPNextPOSWebhookView(APIView):
             payload = request.data.dict()
         print(f"--- PASO 2: PAYLOAD RECIBIDO ---\n{payload}")
 
-        event_type = (
-            payload.get("event")
-            or request.query_params.get("event")
-            or "sales_invoice.on_submit"
-        )
+        event_from_payload = payload.get("event")
+        doctype_from_payload = payload.get("doctype")
+
+        if event_from_payload == "on_submit" and doctype_from_payload:
+            event_type = f"{doctype_from_payload.lower().replace(' ', '_')}.on_submit"
+        else:
+            event_type = (
+                payload.get("event")
+                or request.query_params.get("event")
+                or "sales_invoice.on_submit" # Fallback
+            )
         external_reference = (
             payload.get("name")
             or payload.get("invoice_name")

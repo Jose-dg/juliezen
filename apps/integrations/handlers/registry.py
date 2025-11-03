@@ -125,6 +125,7 @@ def handle_shopify_fulfillment(message: IntegrationMessage) -> Dict[str, Any]:
 @registry.register(IntegrationMessage.INTEGRATION_ERPNEXT_POS)
 def handle_erpnext_pos_fulfillment(message: IntegrationMessage) -> Dict[str, Any]:
     if message.event_type and message.event_type not in ERPNEXT_EVENTS:
+        logger.info("[ERPNEXT] Received event_type: %s", message.event_type)
         logger.debug("[ERPNEXT] Event %s skipped as not in ERPNEXT_EVENTS.", message.event_type)
         return {"skipped": True, "reason": "unsupported_event"}
 
