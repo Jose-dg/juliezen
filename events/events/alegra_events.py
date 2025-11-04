@@ -4,6 +4,7 @@ from events.events.base_event import DomainEvent
 
 @dataclass
 class ErpnextPosInvoiceSubmitted(DomainEvent):
+    event_type = "ErpnextPosInvoiceSubmitted"
     _: KW_ONLY
     payload: dict
     organization_id: UUID
@@ -14,6 +15,7 @@ class ErpnextPosInvoiceSubmitted(DomainEvent):
 
 @dataclass
 class ErpnextSalesInvoiceSubmitted(DomainEvent):
+    event_type = "ErpnextSalesInvoiceSubmitted"
     _: KW_ONLY
     payload: dict
     organization_id: UUID
@@ -21,3 +23,12 @@ class ErpnextSalesInvoiceSubmitted(DomainEvent):
 
     def get_aggregate_id(self) -> str:
         return str(self.organization_id)
+
+@dataclass
+class ERPNextInvoiceSyncRequested(DomainEvent):
+    event_type = "ERPNextInvoiceSyncRequested"
+    _: KW_ONLY
+    message_id: UUID
+
+    def get_aggregate_id(self) -> str:
+        return str(self.message_id)

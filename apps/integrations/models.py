@@ -41,12 +41,20 @@ class IntegrationMessage(models.Model):
     STATUS_ACK = "acknowledged"
     STATUS_FAILED = "failed"
     STATUS_PROCESSED = "processed"
+    STATUS_PROCESSING_CUSTOMER = "processing_customer"
+    STATUS_CREATING_CUSTOMER = "creating_customer"
+    STATUS_PROCESSING_INVOICE = "processing_invoice"
+    STATUS_CREATING_INVOICE = "creating_invoice"
     STATUS_CHOICES = (
         (STATUS_RECEIVED, "Received"),
         (STATUS_DISPATCHED, "Dispatched"),
         (STATUS_ACK, "Acknowledged"),
         (STATUS_FAILED, "Failed"),
         (STATUS_PROCESSED, "Processed"),
+        (STATUS_PROCESSING_CUSTOMER, "Processing Customer"),
+        (STATUS_CREATING_CUSTOMER, "Creating Customer"),
+        (STATUS_PROCESSING_INVOICE, "Processing Invoice"),
+        (STATUS_CREATING_INVOICE, "Creating Invoice"),
     )
 
     MAX_PAYLOAD_BYTES = 512 * 1024  # 512 KB por mensaje integrado
@@ -79,8 +87,12 @@ class IntegrationMessage(models.Model):
 
     ALLOWED_TRANSITIONS = {
         STATUS_RECEIVED: {STATUS_DISPATCHED, STATUS_FAILED},
-        STATUS_DISPATCHED: {STATUS_ACK, STATUS_PROCESSED, STATUS_FAILED},
-        STATUS_ACK: {STATUS_PROCESSED, STATUS_FAILED},
+        STATUS_DISPATCHED: {STATUS_ACK, STATUS_PROCESSED, STATUS_FAILED, STATUS_PROCESSING_CUSTOMER},
+        STATUS_ACK: {STATUS_PROCESSED, STATUS_FAILED, STATUS_PROCESSING_CUSTOMER},
+        STATUS_PROCESSING_CUSTOMER: {STATUS_CREATING_CUSTOMER, STATUS_PROCESSING_INVOICE, STATUS_FAILED},
+        STATUS_CREATING_CUSTOMER: {STATUS_PROCESSING_INVOICE, STATUS_FAILED},
+        STATUS_PROCESSING_INVOICE: {STATUS_CREATING_INVOICE, STATUS_FAILED},
+        STATUS_CREATING_INVOICE: {STATUS_PROCESSED, STATUS_FAILED},
         STATUS_FAILED: {STATUS_RECEIVED},
         STATUS_PROCESSED: set(),
     }
@@ -226,54 +238,6 @@ class IntegrationMessage(models.Model):
         base = 5 * (2 ** min(retries, 6))
         return min(base, 3600)
     
-
-# {
-#        "integrations": {
-#          "shopify_to_erpnext": {
-#            "company_selector": {
-#              "tag_prefix": "cia:",
-#              "domain_map": {
-#                "229f93-2.myshopify.com": "TST",
-#                "22sde3-2.myshopify.com": "M4G",
-#                "229f23sd3-2.myshopify.com": "LAB"
-#             },
-#             "default_company": "TST"
-#           },
-#           "territory": "Colombia",
-#           "currency": "COP",
-#           "naming_series": "SINV-",
-#           "set_posting_time": true,
-#           "update_stock": true,
-#           "due_days": 0,
-#           "price_list": "Tarifa Estándar de Venta",
-#           "price_list_currency": "COP",
-#           "default_customer": "Cliente Contado",
-#           "default_uom": "Unidad",
-#           "shipping_item_code": "ENVIO",
-#           "shipping_item_name": "Costo de Envío",
-#           "item_code_map": {
-#             "SKU_PRODUCTO_A": "ERP_CODIGO_A",
-#             "SKU_PRODUCTO_B": "ERP_CODIGO_B",
-#             "711719510674": "PS-GIFT-CARD-50",
-#             "799366664771": "PS-GIFT-CARD-25",
-#             "14633376753": "JUEGO-FIFA-22-PS4"
-#           },
-#           "receivable_account": "130505 - Clientes Nacionales - TST",
-#           "debit_to": "130505 - Clientes Nacionales - TST",
-#           "default_income_account": "4135 - Comercio al por mayor y al por menor - TST",
-#           "default_cost_center": "Principal - TST",
-#           "default_warehouse": "Almacén Principal - TST",
-#           "tax_charge_type": "On Net Total",
-#           "default_tax_account": "240801 - Impuesto sobre las ventas por pagar - TST",
-#           "tax_account_map": {
-#             "IVA 19%": "24080101 - IVA Generado 19% - TST",
-#             "IVA 5%": "24080102 - IVA Generado 5% - TST"
-#           }
-#         }
-#       }
-#     }
-
-
 class FulfillmentItemMapQuerySet(models.QuerySet):
     def active(self):
         return self.filter(is_active=True)
@@ -287,7 +251,6 @@ class FulfillmentItemMapQuerySet(models.QuerySet):
                 source_company=source_company,
             )
         )
-
 
 class FulfillmentItemMap(models.Model):
     SOURCE_ERPNEXT = "erpnext"

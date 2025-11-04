@@ -45,3 +45,12 @@ class ShopifyWebhookReceivedEvent(DomainEvent):
 
     def get_aggregate_id(self) -> str:
         return self.shopify_domain
+
+@dataclass
+class IntegrationMessageReceived(DomainEvent):
+    event_id: str = field(default_factory=lambda: str(uuid4()))
+    event_type: str = "integration.message.received"
+    message_id: str = ""
+
+    def get_aggregate_id(self) -> str:
+        return self.message_id

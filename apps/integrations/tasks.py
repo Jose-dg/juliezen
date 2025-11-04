@@ -33,14 +33,7 @@ def process_integration_message(self, message_id: str) -> str:
 
 def _process_inbound_message(task, message: IntegrationMessage) -> str:
     print("--- PASO 8: PROCESANDO MENSAJE INBOUND ---")
-    event = IntegrationInboundEvent(
-        company_id=str(message.organization_id),
-        integration=message.integration,
-        message_id=str(message.id),
-        payload=message.payload,
-        external_reference=message.external_reference,
-        metadata={"received_at": message.received_at.isoformat()},
-    )
+    event_bus.publish(IntegrationMessageReceived(message_id=str(message.id)))
 
     try:
         print("--- PASO 9: PUBLICANDO EVENTO EN EVENT BUS ---")
@@ -50,6 +43,7 @@ def _process_inbound_message(task, message: IntegrationMessage) -> str:
         results.extend(registry.dispatch(message.integration, message.event_type or None, message))
         print(f"--- PASO 12: RESULTADOS DEL REGISTRY ---\n{results}")
         message.mark_acknowledged()
+        print("--- PASO 13.2: MENSAJE MARCADO COMO ACKNOWLEDGED ---")
         message.mark_processed(
             response={"handlers": len(results), "results": [repr(r) for r in results]},
             http_status=202,
@@ -64,21 +58,32 @@ def _process_inbound_message(task, message: IntegrationMessage) -> str:
     except Exception as exc:
         print(f"--- ERROR DURANTE EL PROCESAMIENTO ---\n{exc}")
         error_code, retryable, status_code = classify_exception(exc)
+        print("--- PASO 13.1: EXCEPCION CLASIFICADA ---")
         message.mark_acknowledged()
         summary = {
             "status": "failed",
             "error_code": error_code,
             "retryable": retryable,
+            "exception": exc.__class__.__name__,
         }
-        next_attempt_id = None
+        message.save(update_fields=["response_payload"])
+        print("--- PASO 13.3: PAYLOAD DE RESPUESTA GUARDADO ---")
+        message.mark_failed(
+            error_code=error_code,
+            error_message=str(exc),
+            http_status=status_code,
+            retryable=retryable,
+        )
+        print("--- PASO 13.4: MENSAJE MARCADO COMO FALLIDO ---")
+
         if retryable and message.retries < IntegrationMessage.MAX_AUTO_RETRIES:
-            message.retries = message.retries + 1
-            message.save(update_fields=["retries"])
+            print("--- PASO 13.5: REINTENTO PROGRAMADO ---")
             clone = message.schedule_retry()
             summary["next_attempt_id"] = str(clone.id)
             if clone.next_attempt_at:
                 summary["next_attempt_at"] = clone.next_attempt_at.isoformat()
-        message.mark_processed(response=summary, http_status=status_code)
+            message.response_payload = summary
+            message.save(update_fields=["response_payload"])
         return str(message.id)
 
 

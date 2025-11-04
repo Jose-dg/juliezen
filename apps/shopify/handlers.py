@@ -7,7 +7,7 @@ from django.conf import settings
 from apps.integrations.models import IntegrationMessage
 from apps.integrations.tasks import process_integration_message
 from apps.integrations.utils import record_integration_message
-
+from apps.shopify.models import ShopifyStore
 
 def _validate_webhook(secret: str, signature: str, body: bytes) -> bool:
     """Validates the HMAC-SHA256 signature of the webhook."""
@@ -23,13 +23,10 @@ def _validate_webhook(secret: str, signature: str, body: bytes) -> bool:
 
     return hmac.compare_digest(computed_hmac_b64, signature.encode("utf-8"))
 
-
 def handle_shopify_webhook_received(event):
     """
     Listener for the ShopifyWebhookReceivedEvent.
     """
-    from apps.shopify.models import ShopifyStore
-
     print(f"\n{'--'*20} [LISTENER] Shopify Webhook Event Received {'--'*20}")
     shopify_domain = event.shopify_domain
     headers = event.headers
@@ -79,4 +76,8 @@ def handle_shopify_webhook_received(event):
     print(f"[LISTENER] Queuing integration processor task for message ID: {message.id}")
     process_integration_message.delay(str(message.id))
 
-
+def register_handlers():
+    from events import event_bus
+    from events.events.integration_events import ShopifyWebhookReceivedEvent
+    event_bus.subscribe(ShopifyWebhookReceivedEvent.event_type, handle_shopify_webhook_received)
+    print("[SHOPIFY APP] Subscribed handle_shopify_webhook_received to ShopifyWebhookReceivedEvent")
